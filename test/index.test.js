@@ -35,11 +35,11 @@ let wrongQoo10 = {
 }
 
 let validAmazon = {
-    URL: 'https://www.amazon.com/Oculus-Quest-Advanced-All-One-2/dp/B08F7PTF53/ref=lp_16225009011_1_1',
+    URL: 'https://www.amazon.com/AmazonBasics-Mid-Back-Office-Chair-Armrests/dp/B00IIFW2L4/ref=pd_rhf_gw_s_pb_pd_deals_0_4?_encoding=UTF8&ie=UTF8&pd_rd_i=B00IIFW2L4&pd_rd_r=ENRSAJQZYNCX1YX8QYRC&pd_rd_w=W6w7Y&pd_rd_wg=r1BkQ&pf_rd_p=fa641abf-4acb-4e9b-87b4-1f589a5de483&pf_rd_r=ENRSAJQZYNCX1YX8QYRC&pf_rd_s=recent-history-footer&pf_rd_t=gateway&psc=1&refRID=ENRSAJQZYNCX1YX8QYRC',
     TargetPrice: 1000
 }
 let validAmazonSg = {
-    URL: 'https://www.amazon.sg/Oreo-Sandwich-Biscuits-Vanilla-28-5g/dp/B06XNZ4ZBV/ref=sr_1_1?brr=1&dchild=1&qid=1624449855&rd=1&s=grocery&sr=1-1',
+    URL: 'https://www.amazon.sg/Desitin-Maximum-Strength-Oxide-Diaper/dp/B000GCL3AS?ref_=Oct_DLandingS_PC_8868fdee_0&smid=ACT6OAM3OSC9S',
     TargetPrice: 10
 }
 let validEbay = {
@@ -81,7 +81,7 @@ const wrongURLTest = async (data, delay) => {
         const name = snapShot.data().name
         const price = snapShot.data().price
         assert.equal(name, 'Broken URL is given, did you copied correctly?')
-        assert.equal(price, 'Broken URL is given, did you copied correctly')
+        assert.equal(price, 'Broken URL is given, did you copied correctly?')
     } catch (e) {
         throw e
     } finally {
@@ -90,14 +90,14 @@ const wrongURLTest = async (data, delay) => {
 }
 
 
-describe("URL_Test", () => {
-    it("wrong amazon link", () => wrongURLTest(invalidAmazon, 5000))
-    it("wrong amazon SG link", () => wrongURLTest(invalidAmazon, 5500))
-    it("wrong ebay link", () => wrongURLTest(wrongEbay, 5000))
-    it("wrong ebay sg link", () => wrongURLTest(wrongEbaySG, 5000))
-    it("wrong Qoo10 Link", () => wrongURLTest(wrongQoo10, 5500))
-
-})
+// describe("Invalid URL Test", () => {
+//     it("wrong amazon link", () => wrongURLTest(invalidAmazon, 5000))
+//     it("wrong amazon SG link", () => wrongURLTest(invalidAmazon, 5500))
+//     it("wrong ebay link", () => wrongURLTest(wrongEbay, 5000))
+//     it("wrong ebay sg link", () => wrongURLTest(wrongEbaySG, 5000))
+//     it("wrong Qoo10 Link", () => wrongURLTest(wrongQoo10, 5500))
+//     it("wrong Shopee Link", () => wrongURLTest(invalidShopee, 15000))
+// })
 
 
 const validURLTest = async (data, delay) => {
@@ -115,17 +115,66 @@ const validURLTest = async (data, delay) => {
         await admin.firestore().collection("users/test@test.com/items").doc('itemTest1').delete()
     }
 }
-describe("validURLTest", () => {
-    it("working amazon link", () => validURLTest(validAmazon, 6000))
-    it("working amazon SG link", () => validURLTest(validAmazonSg, 6000))
-    it("working ebay link", () => validURLTest(validEbay, 6000))
-    it("working ebay sg link", () => validURLTest(validEbaySG, 6000))
-    it("working Qoo10 Link", () => validURLTest(validQoo10, 6000))
-    it("working Shopee Link", () => validURLTest(validShopee, 15000))
-    it("working Shopee Link", () => validURLTest(shopeeAbove18Item, 15000))
+
+// describe("valid URL Test", () => {
+//     it("working amazon link", () => validURLTest(validAmazon, 6000))
+//     it("working amazon SG link", () => validURLTest(validAmazonSg, 6000))
+//     it("working ebay link", () => validURLTest(validEbay, 6000))
+//     it("working ebay sg link", () => validURLTest(validEbaySG, 6000))
+//     it("working Qoo10 Link", () => validURLTest(validQoo10, 6000))
+//     it("working Shopee Link", () => validURLTest(validShopee, 15000))
+//     it("working Shopee Link for above 18", () => validURLTest(shopeeAbove18Item, 15000))
+//     }
+// )
+let url1 = {
+    URL: 'https://shopee.sg/Noblesse-Cabernet-Sauvignon-2020-Central-Valley-12.0-750ml-i.230389798.5523242232',
+    TargetPrice: 100
+}
+
+let url2 = {
+    URL: 'https://shopee.sg/Optimum-Nutrition-Gold-Standard-Whey-5.5-lbs-Double-Rich-Chocolate-i.18254273.2390409239',
+    TargetPrice: 100
+}
+let url3 = {
+    URL: 'https://shopee.sg/Optimum-Nutrition-Gold-Standard-Whey-1lb-Amino-Energy-(Sticks)-Melatonin-(100-Tabs)-Bundle-Deal-i.18254273.9564729994',
+    TargetPrice: 100
+}
+let url4 = {
+    URL: 'https://shopee.sg/Philosophy-Amazing-Grace-Ballet-Rose-Spray-Fragrance-60ml-i.432223668.7287711525',
+    TargetPrice: 100
+}
+let url5 = {
+    URL: 'https://shopee.sg/-Korean-Snack-CW-Chewy-Chocolate-Chip-Cookie-90g-i.283590323.5647741869',
+    TargetPrice: 100
+}
+let url6 = {
+    URL: 'https://shopee.sg/-SG-Bluetooth-Mouse-Wireless-Mice-BWM-Universal-Compatibility-for-Laptop-Desktop-i.75632239.5742799080',
+    TargetPrice: 100
+}
+let url7 = {
+    URL: 'https://shopee.sg/DIY-Assembled-Engineering-Vehicle-Excavator-with-Nut-Screwdriver-Combination-Set-i.374546003.3777321942',
+    TargetPrice: 100
+}
+
+const validURLTest2 = async () => {
+    //const snap = await admin.firestore().collection("users/test@test.com/items").doc('itemTest1').set({PriceAndDate: [{x: 5, y: new Date()}, {x: 6, y: new Date('Apr 20 2022')}]})
+    const itemCollection = await admin.firestore().collection("users/test@test.com/items").doc('itemTest1').get()
+    let item2 = await itemCollection.data()
+    let item = item2.PriceAndDate
+    item.push({x: 6, y: new Date()})
+    await admin.firestore().collection("users/test@test.com/items").doc('itemTest1').update({PriceAndDate: item})
+}
+
+describe("valid URL Test", () => {
+        it("shopee link 1", () => validURLTest2())
+        // it("shopee link 2", () => validURLTest(url2, 10000))
+        // it("shopee link 3", () => validURLTest(url3, 10000))
+        // it("shopee link 4", () => validURLTest(url4, 10000))
+        // it("shopee link 5", () => validURLTest(url5, 10000))
+        // it("shopee link 6", () => validURLTest(url6, 10000))
+        // it("shopee link 7", () => validURLTest(url7, 10000))
     }
 )
-
 
 
 

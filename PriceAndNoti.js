@@ -4,10 +4,12 @@ const {Expo} = require('expo-server-sdk')
 let expo = new Expo();
 const cheerio = require('cheerio')
 const axios = require('axios')
+const crypto = require('crypto')
 
 
-const nameAndPrice = async (url, tPrice, token, isFirstTime) => {
+const nameAndPrice = async (url, tPrice, token, isFirstTime, priceArr, dateArr, itemKey, detailTable) => {
     let data = {}
+    let rating, noOfRatings
     const browser = await ptr.launch({
         args: ['--no-sandbox',
             '--disable-setuid-sandbox',
@@ -19,6 +21,13 @@ const nameAndPrice = async (url, tPrice, token, isFirstTime) => {
         headless: true,
         timeout: 0
     })
+
+    if (isFirstTime) {
+        priceArr = [null]
+        dateArr = [null]
+        detailTable = {}
+    }
+
 
     const page = await browser.newPage()
     //Dont load any images
@@ -35,52 +44,116 @@ const nameAndPrice = async (url, tPrice, token, isFirstTime) => {
         await page.goto(url, {waitUntil: "networkidle2"})
     } catch (e) {
         data['name'] = 'Broken URL is given, did you copied correctly?'
-        data['price'] = 'Broken URL is given, did you copied correctly'
-
+        if (isFirstTime) {
+            priceArr[priceArr.length - 1] = 'Broken URL is given, did you copied correctly?'
+        } else {
+            priceArr.push('Broken URL is given, did you copied correctly?')
+        }
+        data['price'] = priceArr
     }
     const priceSelector = await page.$('._3e_UQT')
     const nameSelector = await page.$('.attM6y')
-    //if the website don't have css for name and price, meaning website fully loaded but it is item not found or 404
+    await page.$('.OitLRu')
+//if the website don't have css for name and price, meaning website fully loaded but it is item not found or 404
     if (nameSelector !== null && priceSelector !== null) {
         const retrievePrice = await page.evaluate(() => {
-            const price_HTML = document.querySelector('._3e_UQT')
-            const price = price_HTML.innerHTML
+            const priceHTML = document.querySelector('._3e_UQT')
+            const price = priceHTML.innerHTML
             return price
         })
 
         const getName = await page.evaluate(() => {
-            const name_HTML = document.querySelector('.attM6y')
-            const name = name_HTML.textContent
+            const nameHTML = document.querySelector('.attM6y')
+            const name = nameHTML.textContent
             return name
 
         })
+        const getRating = await page.evaluate(() => {
+            const ratingHTML = document.querySelector('.OitLRu')
+            const rating = ratingHTML.textContent
+            return rating
+        })
+        const getNoOfRatings = await page.evaluate(() => {
+            const noOfRatingsHTML = document.querySelectorAll('.OitLRu')[1]
+            const rating = noOfRatingsHTML.textContent
+            return rating
+        })
         const floatPrice = parseFloat(retrievePrice.replace("$", ""))
+        let currentDate = new Date()
         data['name'] = getName
-        data['price'] = retrievePrice
-        data['refTime'] = new Date()
-        data['lastUpdate'] = moment(data['refTime']).fromNow()
+        data['lastUpdate'] = moment(currentDate).fromNow()
+        data['itemKey'] = itemKey
+        if (isFirstTime) {
+            priceArr[priceArr.length - 1] = retrievePrice
+            dateArr[dateArr.length - 1] = currentDate
+            detailTable = {
+                lowestPrice: retrievePrice, highestPrice: retrievePrice,
+                lowRefTime: currentDate, highRefTime: currentDate,
+                lowLastUpdate: moment(currentDate).fromNow(),
+                highLastUpdate: moment(currentDate).fromNow()
+            }
+        } else {
+            if (detailTable['lowestPrice'] > floatPrice) {
+                detailTable['lowestPrice'] = retrievePrice
+                detailTable['lowRefTime'] = currentDate
+                detailTable['lowLastUpdate'] = moment(currentDate).fromNow()
+            }
+            if (detailTable['highestPrice'] < floatPrice) {
+                detailTable['highestPrice'] = retrievePrice
+                detailTable['highRefTime'] = currentDate
+                detailTable['highLastUpdate'] = moment(currentDate).fromNow()
+            }
+            if (priceArr.length === 7) {
+                priceArr.shift()
+                dateArr.shift()
 
+            }
+            priceArr.push(retrievePrice)
+            dateArr.push(currentDate)
+        }
+        detailTable['rating'] = getRating
+        detailTable['noOfRatings'] = getNoOfRatings
+        data['price'] = priceArr
+        data['dateArr'] = dateArr
+        data['detailTable'] = detailTable
         ExpoPushNotification(tPrice, floatPrice, token, isFirstTime, getName)
     } else {
         data['name'] = 'Broken URL is given, did you copied correctly?'
-        data['price'] = 'Broken URL is given, did you copied correctly?'
-
+        priceArr[priceArr.length - 1] = 'Broken URL is given, did you copied correctly?'
+        data['price'] = priceArr
     }
     await browser.close()
     return data;
 }
 
-const amazonEbayPriceAndName = async (url, tPrice, token, isFirstTime) => {
-    const AMAZONID = ["#productTitle", "#priceblock_dealprice", "#priceblock_ourprice"]
-    const EBAYID = ["#vi-lkhdr-itmTitl", "#mm-saleDscPrc", "#convbinPrice", "#prcIsum"]
-    const QOO10ID = ['#goods_name', '#div_GroupBuyRegion', '#discount_info', '#dl_sell_price']
+const amazonEbayPriceAndName = async (url, tPrice, token, isFirstTime, priceArr, dateArr, itemKey, detailTable) => {
+    //const AMAZONID = ["#productTitle", "#priceblock_dealprice", "#priceblock_ourprice"]
+    const EBAYID = ["#vi-lkhdr-itmTitl", "#mm-saleDscPrc", "#convbinPrice", "#prcIsum", "#histogramid", ".ebay-review-start-rating", ".ebay-reviews-count"]
+    const QOO10ID = ['#goods_name', '#div_GroupBuyRegion', '#discount_info', '#dl_sell_price', '#ctl00_div_satis_percent', "#opinion_count"]
     let data = {}
-    let name, price;
+    let name, price, rating, noOfRatings
+    if (isFirstTime) {
+        priceArr = [null]
+        dateArr = [null]
+        detailTable = {}
+    }
+    //to reduce redundancy in code
 
     try {
         let response = await axios.get(url)
         const $ = await cheerio.load(response.data)
         if (url.includes("ebay")) {
+            rating = await $(EBAYID[4]).find(EBAYID[5])
+            noOfRatings = await $(EBAYID[4]).find(EBAYID[6])
+            if (rating.html() != null) {
+                rating = parseFloat(rating.html())
+                console.log(rating)
+                noOfRatings = parseFloat(noOfRatings.html().replace(/\D/g, ""))
+                console.log(noOfRatings)
+            } else {
+                rating = "0"
+                noOfRatings = "0"
+            }
             name = await $(EBAYID[0]).html().trim()
             price = await $(EBAYID[1]).html()
             //no discount price
@@ -94,18 +167,16 @@ const amazonEbayPriceAndName = async (url, tPrice, token, isFirstTime) => {
                     price = await price[0].childNodes[0].nodeValue.trim()
                 }
             }
-        } else if (url.includes("amazon")) {
-            name = await $(AMAZONID[0]).html().trim()
-            price = await $(AMAZONID[1]).html()
-            if (price == null) {
-                price = await $(AMAZONID[2]).html()
-            }
         } else {
+            rating = await $(QOO10ID[4]).find('strong').text()
+            rating = parseFloat(rating.replace('%', ''))
+            noOfRatings = await $(QOO10ID[5]).html()
+            noOfRatings = parseFloat(noOfRatings.replace(/\D/g, ""))
             name = await $(QOO10ID[0]).clone().children().remove().end().text()
             price = await $(QOO10ID[1]).find('.prc > strong').html()
             //if it does not have group price
             if (price == null) {
-                price =  await $(QOO10ID[2]).find('dd > strong').html()
+                price = await $(QOO10ID[2]).find('dd > strong').html()
                 //if it does not have discount
                 if (price == null) {
                     price = await $(QOO10ID[3]).find('dd > strong').html()
@@ -119,19 +190,54 @@ const amazonEbayPriceAndName = async (url, tPrice, token, isFirstTime) => {
 
     } catch (e) {
         data['name'] = 'Broken URL is given, did you copied correctly?'
-        data['price'] = 'Broken URL is given, did you copied correctly?'
+        priceArr[priceArr.length - 1] = ('Broken URL is given, did you copied correctly?')
+        data['price'] = priceArr
         return data
     }
-    data['name'] = name
-    data['price'] = price.replace(" ", "")
-    data['refTime'] = new Date()
-    data['lastUpdate'] = moment(data['refTime']).fromNow()
+    data["name"] = name
+    let currentDate = new Date()
+    data['itemKey'] = itemKey
+    data['lastUpdate'] = moment(currentDate).fromNow()
+    if (isFirstTime) {
+        priceArr[priceArr.length - 1] = price.replace(" ", "")
+        dateArr[dateArr.length - 1] = currentDate
+        detailTable = {
+            lowestPrice: price, highestPrice: price,
+            lowRefTime: currentDate, highRefTime: currentDate,
+            lowLastUpdate: moment(currentDate).fromNow(),
+            highLastUpdate: moment(currentDate).fromNow(),
+            rating: rating,
+            noOfRatings: noOfRatings
+        }
+    } else {
+        let floatPrice = parseFloat(price.replace(/[^\d.-]/g, ""))
+        if (detailTable['lowestPrice'] > floatPrice) {
+            detailTable['lowestPrice'] = price
+            detailTable['lowRefTime'] = currentDate
+            detailTable['lowLastUpdate'] = moment(currentDate).fromNow()
+        }
+        if (detailTable['highestPrice'] < floatPrice) {
+            detailTable['highestPrice'] = price
+            detailTable['highRefTime'] = currentDate
+            detailTable['highLastUpdate'] = moment(currentDate).fromNow()
+        }
+        if (priceArr.length === 7) {
+            priceArr.shift()
+            dateArr.shift()
+
+        }
+        priceArr.push(price)
+        dateArr.push(currentDate)
+    }
+    detailTable['rating'] = rating
+    detailTable['noOfRatings'] = noOfRatings
+    data['dateArr'] = dateArr
+    data['price'] = priceArr
+    data['detailTable'] = detailTable
     let floatPrice = parseFloat(price.replace(/[^\d.-]/g, ""))
     ExpoPushNotification(parseFloat(tPrice), floatPrice, token, isFirstTime, name)
     return data;
 }
-
-
 
 
 const ExpoPushNotification = (tPrice, floatPrice, token, isFirstTime, name) => {
@@ -141,13 +247,12 @@ const ExpoPushNotification = (tPrice, floatPrice, token, isFirstTime, name) => {
             messages.push({
                 to: token,
                 sound: 'default',
-                title: 'Price drop for' + name + '!!',
+                title: 'Price drop for ' + name + '!!',
                 body: 'Get this item now!',
             })
-
             expo.sendPushNotificationsAsync(messages);
         }
     }
 }
 
-module.exports = {nameAndPrice, amazonEbayPriceAndName, ExpoPushNotification }
+module.exports = {nameAndPrice, amazonEbayPriceAndName, ExpoPushNotification}
