@@ -10,6 +10,7 @@ const crypto = require('crypto')
 const nameAndPrice = async (url, tPrice, token, isFirstTime, priceArr, dateArr, itemKey, detailTable) => {
     let data = {}
     let rating, noOfRatings
+    let isLowest = false
     const browser = await ptr.launch({
         args: ['--no-sandbox',
             '--disable-setuid-sandbox',
@@ -70,13 +71,23 @@ const nameAndPrice = async (url, tPrice, token, isFirstTime, priceArr, dateArr, 
         })
         const getRating = await page.evaluate(() => {
             const ratingHTML = document.querySelector('.OitLRu')
-            const rating = ratingHTML.textContent
+            let rating
+            if (ratingHTML != null) {
+                rating = ratingHTML.textContent
+            } else {
+                rating = 0
+            }
             return rating
         })
         const getNoOfRatings = await page.evaluate(() => {
             const noOfRatingsHTML = document.querySelectorAll('.OitLRu')[1]
-            const rating = noOfRatingsHTML.textContent
-            return rating
+            let noOfRatings = 0
+            if (noOfRatingsHTML != null || noOfRatingsHTML !== undefined) {
+                noOfRatings = noOfRatingsHTML.textContent
+            } else {
+                noOfRatings = 0
+            }
+            return noOfRatings
         })
         const floatPrice = parseFloat(retrievePrice.replace("$", ""))
         let currentDate = new Date()
@@ -94,6 +105,7 @@ const nameAndPrice = async (url, tPrice, token, isFirstTime, priceArr, dateArr, 
             }
         } else {
             if (detailTable['lowestPrice'] > floatPrice) {
+                isLowest = true
                 detailTable['lowestPrice'] = retrievePrice
                 detailTable['lowRefTime'] = currentDate
                 detailTable['lowLastUpdate'] = moment(currentDate).fromNow()
@@ -116,7 +128,7 @@ const nameAndPrice = async (url, tPrice, token, isFirstTime, priceArr, dateArr, 
         data['price'] = priceArr
         data['dateArr'] = dateArr
         data['detailTable'] = detailTable
-        ExpoPushNotification(tPrice, floatPrice, token, isFirstTime, getName)
+        ExpoPushNotification(tPrice, floatPrice, token, isFirstTime, getName, isLowest)
     } else {
         data['name'] = 'Broken URL is given, did you copied correctly?'
         priceArr[priceArr.length - 1] = 'Broken URL is given, did you copied correctly?'
@@ -126,11 +138,12 @@ const nameAndPrice = async (url, tPrice, token, isFirstTime, priceArr, dateArr, 
     return data;
 }
 
-const amazonEbayPriceAndName = async (url, tPrice, token, isFirstTime, priceArr, dateArr, itemKey, detailTable) => {
+const amazonEbayPriceAndName = async (url, tPrice, token, isFirstTime, priceArr, dateArr, itemKey, detailTable, is12pmReset) => {
     //const AMAZONID = ["#productTitle", "#priceblock_dealprice", "#priceblock_ourprice"]
     const EBAYID = ["#vi-lkhdr-itmTitl", "#mm-saleDscPrc", "#convbinPrice", "#prcIsum", "#histogramid", ".ebay-review-start-rating", ".ebay-reviews-count"]
     const QOO10ID = ['#goods_name', '#div_GroupBuyRegion', '#discount_info', '#dl_sell_price', '#ctl00_div_satis_percent', "#opinion_count"]
     let data = {}
+    let isLowest = false
     let name, price, rating, noOfRatings
     if (isFirstTime) {
         priceArr = [null]
@@ -147,9 +160,7 @@ const amazonEbayPriceAndName = async (url, tPrice, token, isFirstTime, priceArr,
             noOfRatings = await $(EBAYID[4]).find(EBAYID[6])
             if (rating.html() != null) {
                 rating = parseFloat(rating.html())
-                console.log(rating)
                 noOfRatings = parseFloat(noOfRatings.html().replace(/\D/g, ""))
-                console.log(noOfRatings)
             } else {
                 rating = "0"
                 noOfRatings = "0"
@@ -210,24 +221,34 @@ const amazonEbayPriceAndName = async (url, tPrice, token, isFirstTime, priceArr,
             noOfRatings: noOfRatings
         }
     } else {
+
         let floatPrice = parseFloat(price.replace(/[^\d.-]/g, ""))
-        if (detailTable['lowestPrice'] > floatPrice) {
+        let lowestPrice = parseFloat(detailTable['lowestPrice'].replace(/[^\d.-]/g, ""))
+        console.log("lowestPrice")
+        let highestPrice = parseFloat(detailTable['highestPrice'].replace(/[^\d.-]/g, ""))
+        if (lowestPrice > floatPrice) {
+            isLowest = true
             detailTable['lowestPrice'] = price
             detailTable['lowRefTime'] = currentDate
             detailTable['lowLastUpdate'] = moment(currentDate).fromNow()
         }
-        if (detailTable['highestPrice'] < floatPrice) {
+        if (highestPrice < floatPrice) {
             detailTable['highestPrice'] = price
             detailTable['highRefTime'] = currentDate
             detailTable['highLastUpdate'] = moment(currentDate).fromNow()
         }
-        if (priceArr.length === 7) {
-            priceArr.shift()
-            dateArr.shift()
+        if (is12pmReset) {
+            if (priceArr.length === 7) {
+                priceArr.shift()
+                dateArr.shift()
 
+            }
+            priceArr.push(price)
+            dateArr.push(currentDate)
+        } else {
+                priceArr[priceArr.length - 1] = price
+            dateArr[dateArr.length - 1] = currentDate
         }
-        priceArr.push(price)
-        dateArr.push(currentDate)
     }
     detailTable['rating'] = rating
     detailTable['noOfRatings'] = noOfRatings
@@ -235,21 +256,31 @@ const amazonEbayPriceAndName = async (url, tPrice, token, isFirstTime, priceArr,
     data['price'] = priceArr
     data['detailTable'] = detailTable
     let floatPrice = parseFloat(price.replace(/[^\d.-]/g, ""))
-    ExpoPushNotification(parseFloat(tPrice), floatPrice, token, isFirstTime, name)
+    ExpoPushNotification(parseFloat(tPrice), floatPrice, token, isFirstTime, name, isLowest)
     return data;
 }
 
 
-const ExpoPushNotification = (tPrice, floatPrice, token, isFirstTime, name) => {
+const ExpoPushNotification = (tPrice, floatPrice, token, isFirstTime, name, isLowest) => {
     let messages = []
     if (!isFirstTime) {
+
         if (tPrice > floatPrice) {
-            messages.push({
-                to: token,
-                sound: 'default',
-                title: 'Price drop for ' + name + '!!',
-                body: 'Get this item now!',
-            })
+            if (!isLowest) {
+                messages.push({
+                    to: token,
+                    sound: 'default',
+                    title: 'Price drop for ' + name + '!!',
+                    body: 'CurrentPrice: $' + floatPrice + "\n\nTargetPrice: $" + tPrice,
+                })
+            } else {
+                messages.push({
+                    to: token,
+                    sound: 'default',
+                    title: 'Lowest Price recorded for ' + name + '!!!',
+                    body: 'CurrentPrice: $' + floatPrice + "\nTargetPrice: $" + tPrice,
+                })
+            }
             expo.sendPushNotificationsAsync(messages);
         }
     }

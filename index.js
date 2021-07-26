@@ -43,7 +43,7 @@ exports.webScrap = functions.region('asia-southeast1').runWith(runtimeOpts)
         if (url.includes("shopee")) {
             data = await priceAndNoti.nameAndPrice(url, targetPrice, expo_key, true, priceArr, dateArr, itemKey)
         } else {
-            data = await priceAndNoti.amazonEbayPriceAndName(url, targetPrice, expo_key, true, priceArr, dateArr, itemKey)
+            data = await priceAndNoti.amazonEbayPriceAndName(url, targetPrice, expo_key, true, priceArr, dateArr, itemKey, {}, false)
         }
         await db.collection('users').doc(userID).collection('items').doc(itemID).update(data)
         let itemKeyList = await userSnapShot.data().itemKeyList

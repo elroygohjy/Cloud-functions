@@ -38,7 +38,9 @@ exports.scheduledWebScrap = functions.runWith({
         const name = dataObject.name
 
         let data = {}
+
         if (url.includes("shopee")) {
+            let isLowest = false
             const page = await browser.newPage()
             await page.setRequestInterception(true);
             await page.on('request', request => {
@@ -54,7 +56,6 @@ exports.scheduledWebScrap = functions.runWith({
             } catch (e) {
                 data['name'] = 'Broken URL is given, did you copied correctly?'
                 priceArr[priceArr.length - 1] = ('Broken URL is given, did you copied correctly?')
-                data['price'] = priceArr
             }
             const priceSelector = await page.$('._3e_UQT')
             const nameSelector = await page.$('.attM6y')
@@ -74,28 +75,42 @@ exports.scheduledWebScrap = functions.runWith({
 
                 })
 
+
                 const getRating = await page.evaluate(() => {
                     const ratingHTML = document.querySelector('.OitLRu')
-                    const rating = ratingHTML.textContent
+                    let rating
+                    if (ratingHTML != null) {
+                        rating = ratingHTML.textContent
+                    } else {
+                        rating = 0
+                    }
                     return rating
                 })
                 const getNoOfRatings = await page.evaluate(() => {
                     const noOfRatingsHTML = document.querySelectorAll('.OitLRu')[1]
-                    const noOfRatings = noOfRatingsHTML.textContent
+                    let noOfRatings = 0
+                    if (noOfRatingsHTML != null || noOfRatingsHTML !== undefined) {
+                        noOfRatings = noOfRatingsHTML.textContent
+                    } else {
+                        noOfRatings = 0
+                    }
                     return noOfRatings
                 })
                 const floatPrice = parseFloat(retrievePrice.replace("$", ""))
+                const lowestPrice = parseFloat(detailTable['lowestPrice'].replace("$", ""))
+                const highestPrice = parseFloat(detailTable['highestPrice'].replace("$", ""))
                 let currentDate = new Date()
                 data['name'] = getName
                 data['lastUpdate'] = moment(currentDate).fromNow()
                 data['itemKey'] = itemKey
 
-                if (detailTable['lowestPrice'] > retrievePrice) {
+                if (lowestPrice > retrievePrice) {
+                    isLowest = true
                     detailTable['lowestPrice'] = retrievePrice
                     detailTable['lowRefTime'] = currentDate
                     detailTable['lowLastUpdate'] = moment(currentDate).fromNow()
                 }
-                if (detailTable['highestPrice'] < retrievePrice) {
+                if (highestPrice < retrievePrice) {
                     detailTable['highestPrice'] = retrievePrice
                     detailTable['highRefTime'] = currentDate
                     detailTable['highLastUpdate'] = moment(currentDate).fromNow()
@@ -109,14 +124,14 @@ exports.scheduledWebScrap = functions.runWith({
                 data['price'] = priceArr
                 data['dateArr'] = dateArr
                 data['detailTable'] = detailTable
-                priceAndNoti.ExpoPushNotification(tPrice, floatPrice, token, false, getName)
+                priceAndNoti.ExpoPushNotification(tPrice, floatPrice, token, false, getName, isLowest)
             } else {
                 data['name'] = 'Broken URL is given, did you copied correctly?'
                 priceArr[priceArr.length - 1] = 'Broken URL is given, did you copied correctly?'
                 data['price'] = priceArr
             }
         } else {
-            data = await priceAndNoti.amazonEbayPriceAndName(url, tPrice, token, false, priceArr, dateArr, itemKey, detailTable)
+            data = await priceAndNoti.amazonEbayPriceAndName(url, tPrice, token, false, priceArr, dateArr, itemKey, detailTable, false)
         }
         if (isNameSetByUser) {
             data['name'] = name

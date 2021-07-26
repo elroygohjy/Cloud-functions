@@ -6,7 +6,7 @@ const priceAndNoti = require('./PriceAndNoti')
 let ptr = require('puppeteer')
 
 exports.graphUpdate = functions.region("asia-southeast1").runWith({memory: '8GB', timeoutSeconds: 300})
-    .pubsub.schedule('0 12 * * *').timeZone('Etc/GMT+8').onRun(async (context) => {
+    .pubsub.schedule('0 20 * * *').timeZone('Etc/GMT+8').onRun(async (context) => {
         const usersSnapShot = await db.collection("users").get()
         const massRefresh = async (email) => {
             const browser = await ptr.launch({
@@ -36,8 +36,10 @@ exports.graphUpdate = functions.region("asia-southeast1").runWith({memory: '8GB'
                     const isNameSetByUser = dataObject.edited
                     const name = dataObject.name
 
+
                     let data = {}
                     if (url.includes("shopee")) {
+                        let isLowest = false
                         const page = await browser.newPage()
                         await page.setRequestInterception(true);
                         await page.on('request', request => {
@@ -53,7 +55,7 @@ exports.graphUpdate = functions.region("asia-southeast1").runWith({memory: '8GB'
                         } catch (e) {
                             data['name'] = 'Broken URL is given, did you copied correctly?'
                             priceArr.push('Broken URL is given, did you copied correctly?')
-                            data['price2D'] = priceArr
+                            data['price'] = priceArr
                         }
                         const priceSelector = await page.$('._3e_UQT')
                         const nameSelector = await page.$('.attM6y')
@@ -75,26 +77,39 @@ exports.graphUpdate = functions.region("asia-southeast1").runWith({memory: '8GB'
 
                             const getRating = await page.evaluate(() => {
                                 const ratingHTML = document.querySelector('.OitLRu')
-                                const rating = ratingHTML.textContent
+                                let rating
+                                if (ratingHTML != null) {
+                                    rating = ratingHTML.textContent
+                                } else {
+                                    rating = 0
+                                }
                                 return rating
                             })
                             const getNoOfRatings = await page.evaluate(() => {
                                 const noOfRatingsHTML = document.querySelectorAll('.OitLRu')[1]
-                                const noOfRatings = noOfRatingsHTML.textContent
+                                let noOfRatings = 0
+                                if (noOfRatingsHTML != null || noOfRatingsHTML !== undefined) {
+                                    noOfRatings = noOfRatingsHTML.textContent
+                                } else {
+                                    noOfRatings = 0
+                                }
                                 return noOfRatings
                             })
                             const floatPrice = parseFloat(retrievePrice.replace("$", ""))
+                            const lowestPrice = parseFloat(detailTable['lowestPrice'].replace("$", ""))
+                            const highestPrice = parseFloat(detailTable['highestPrice'].replace("$", ""))
+
                             let currentDate = new Date()
                             data['name'] = getName
                             data['lastUpdate'] = moment(currentDate).fromNow()
                             data['itemKey'] = itemKey
-
-                            if (detailTable['lowestPrice'] > retrievePrice) {
+                            if (lowestPrice > retrievePrice) {
+                                isLowest = true
                                 detailTable['lowestPrice'] = retrievePrice
                                 detailTable['lowRefTime'] = currentDate
                                 detailTable['lowLastUpdate'] = moment(currentDate).fromNow()
                             }
-                            if (detailTable['highestPrice'] < retrievePrice) {
+                            if (highestPrice < retrievePrice) {
                                 detailTable['highestPrice'] = retrievePrice
                                 detailTable['highRefTime'] = currentDate
                                 detailTable['highLastUpdate'] = moment(currentDate).fromNow()
@@ -112,7 +127,7 @@ exports.graphUpdate = functions.region("asia-southeast1").runWith({memory: '8GB'
                             data['price'] = priceArr
                             data['dateArr'] = dateArr
                             data['detailTable'] = detailTable
-                            priceAndNoti.ExpoPushNotification(tPrice, floatPrice, token, false, getName)
+                            priceAndNoti.ExpoPushNotification(tPrice, floatPrice, token, false, getName, isLowest)
                         } else {
                             data['name'] = 'Broken URL is given, did you copied correctly?'
                             priceArr[priceArr.length - 1] = 'Broken URL is given, did you copied correctly?'
@@ -120,7 +135,7 @@ exports.graphUpdate = functions.region("asia-southeast1").runWith({memory: '8GB'
                         }
                         await page.close()
                     } else {
-                        data = await priceAndNoti.amazonEbayPriceAndName(url, tPrice, token, false, priceArr, dateArr, itemKey, detailTable)
+                        data = await priceAndNoti.amazonEbayPriceAndName(url, tPrice, token, false, priceArr, dateArr, itemKey, detailTable, true)
                     }
                     if (isNameSetByUser) {
                         data['name'] = name
